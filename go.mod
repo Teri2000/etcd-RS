@@ -24,6 +24,8 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jonboulle/clockwork v0.1.0
 	github.com/json-iterator/go v1.1.7
+	github.com/klauspost/cpuid/v2 v2.0.6 // indirect
+	github.com/klauspost/reedsolomon v1.9.12
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/mattn/go-runewidth v0.0.2 // indirect
