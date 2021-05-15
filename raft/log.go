@@ -19,6 +19,7 @@ import (
 	"log"
 
 	pb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/rscode"
 )
 
 type raftLog struct {
@@ -84,7 +85,7 @@ func (l *raftLog) String() string {
 }
 
 // maybeAppend returns (0, false) if the entries cannot be appended. Otherwise,
-// it returns (last index of new entries, true).
+// it returns (last index of new entries, true). Follower: handleAppendEntries
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
 	if l.matchTerm(index, logTerm) {
 		lastnewi = index + uint64(len(ents))
@@ -103,12 +104,37 @@ func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry
 	return 0, false
 }
 
+//Leader MsgProp: appendEntries
 func (l *raftLog) append(ents ...pb.Entry) uint64 {
 	if len(ents) == 0 {
 		return l.lastIndex()
 	}
 	if after := ents[0].Index - 1; after < l.committed {
 		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
+	}
+	l.unstable.truncateAndAppend(ents)
+	return l.lastIndex()
+}
+
+func (l *raftLog) appendRS(ents ...pb.Entry) uint64 {
+	if len(ents) == 0 {
+		return l.lastIndex()
+	}
+	if after := ents[0].Index - 1; after < l.committed {
+		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
+	}
+	for _, ent := range ents {
+		var entRs []pb.Entry
+		var ent_ptr *pb.Entry = &ent
+		if ent.Type == pb.EntryNormal {
+			entRs = rscode.EncodeEntry(ent)
+		}
+		if len(entRs) > 0 {
+			for _, entR := range entRs {
+				ent_ptr.NextRSEntry = &entR
+				ent_ptr = ent_ptr.NextRSEntry
+			}
+		}
 	}
 	l.unstable.truncateAndAppend(ents)
 	return l.lastIndex()

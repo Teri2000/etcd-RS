@@ -434,7 +434,11 @@ func (r *raft) send(m pb.Message) {
 // sendAppend sends an append RPC with new entries (if any) and the
 // current commit index to the given peer.
 func (r *raft) sendAppend(to uint64) {
-	r.maybeSendAppend(to, true)
+	r.maybeSendAppend(to, true, false)
+}
+
+func (r *raft) sendRSAppend(to uint64) {
+	r.maybeSendAppend(to, true, true)
 }
 
 // maybeSendAppend sends an append RPC with new entries to the given peer,
@@ -442,7 +446,7 @@ func (r *raft) sendAppend(to uint64) {
 // argument controls whether messages with no entries will be sent
 // ("empty" messages are useful to convey updated Commit indexes, but
 // are undesirable when we're sending multiple messages in a batch).
-func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
+func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool, sendRS bool) bool {
 	pr := r.prs.Progress[to]
 	if pr.IsPaused() {
 		return false
@@ -481,10 +485,16 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
+		var newEnts []pb.Entry
+		if sendRS {
+			newEnts = tryUseRsEntries(ents)
+		} else {
+			newEnts = ents
+		}
 		m.Type = pb.MsgApp
 		m.Index = pr.Next - 1
 		m.LogTerm = term
-		m.Entries = ents
+		m.Entries = newEnts
 		m.Commit = r.raftLog.committed
 		if n := len(m.Entries); n != 0 {
 			switch pr.State {
@@ -525,12 +535,16 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
-func (r *raft) bcastAppend() {
+func (r *raft) bcastAppend(tryRS bool) {
 	r.prs.Visit(func(id uint64, _ *tracker.Progress) {
 		if id == r.id {
 			return
 		}
-		r.sendAppend(id)
+		if r.prs.Progress[id].RecentActive && tryRS {
+			r.sendRSAppend(id)
+		} else {
+			r.sendAppend(id)
+		}
 	})
 }
 
@@ -571,7 +585,7 @@ func (r *raft) advance(rd Ready) {
 				Type: pb.EntryConfChangeV2,
 				Data: ccdata,
 			}
-			if !r.appendEntry(ent) {
+			if !r.appendEntry(false, ent) {
 				// If we could not append the entry, bump the pending conf index
 				// so that we'll try again later.
 				//
@@ -632,7 +646,7 @@ func (r *raft) reset(term uint64) {
 	r.readOnly = newReadOnly(r.readOnly.option)
 }
 
-func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
+func (r *raft) appendEntry(tryRS bool, es ...pb.Entry) (accepted bool) {
 	li := r.raftLog.lastIndex()
 	for i := range es {
 		es[i].Term = r.Term
@@ -648,7 +662,12 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 		return false
 	}
 	// use latest "last" index after truncate/append
-	li = r.raftLog.append(es...)
+	if tryRS {
+		li = r.raftLog.appendRS(es...)
+	} else {
+		li = r.raftLog.append(es...)
+	}
+
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
 	r.maybeCommit()
@@ -753,7 +772,7 @@ func (r *raft) becomeLeader() {
 	r.pendingConfIndex = r.raftLog.lastIndex()
 
 	emptyEnt := pb.Entry{Data: nil}
-	if !r.appendEntry(emptyEnt) {
+	if !r.appendEntry(false, emptyEnt) {
 		// This won't happen because we just called reset() above.
 		r.logger.Panic("empty entry was dropped")
 	}
@@ -1073,10 +1092,10 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		}
 
-		if !r.appendEntry(m.Entries...) {
+		if !r.appendEntry(true, m.Entries...) {
 			return ErrProposalDropped
 		}
-		r.bcastAppend()
+		r.bcastAppend(true)
 		return nil
 	case pb.MsgReadIndex:
 		// If more than the local vote is needed, go through a full broadcast,
@@ -1158,7 +1177,7 @@ func stepLeader(r *raft, m pb.Message) error {
 				}
 
 				if r.maybeCommit() {
-					r.bcastAppend()
+					r.bcastAppend(false)
 				} else if oldPaused {
 					// If we were paused before, this node may be missing the
 					// latest commit index, so send it.
@@ -1170,7 +1189,7 @@ func stepLeader(r *raft, m pb.Message) error {
 				// replicate, or when freeTo() covers multiple messages). If
 				// we have more entries to send, send as many messages as we
 				// can (without sending empty messages for the commit index)
-				for r.maybeSendAppend(m.From, false) {
+				for r.maybeSendAppend(m.From, false, false) {
 				}
 				// Transfer leadership is in progress.
 				if m.From == r.leadTransferee && pr.Match == r.raftLog.lastIndex() {
@@ -1268,6 +1287,8 @@ func stepLeader(r *raft, m pb.Message) error {
 		} else {
 			r.sendAppend(leadTransferee)
 		}
+	case pb.MsgRecvRSResp:
+
 	}
 	return nil
 }
@@ -1306,7 +1327,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 				r.campaign(campaignElection)
 			} else {
 				r.becomeLeader()
-				r.bcastAppend()
+				r.bcastAppend(false)
 			}
 		case quorum.VoteLost:
 			// pb.MsgPreVoteResp contains future term of pre-candidate
@@ -1373,6 +1394,8 @@ func stepFollower(r *raft, m pb.Message) error {
 			return nil
 		}
 		r.readStates = append(r.readStates, ReadState{Index: m.Index, RequestCtx: m.Entries[0].Data})
+	case pb.MsgRecvRS:
+
 	}
 	return nil
 }
@@ -1557,13 +1580,13 @@ func (r *raft) switchToConfig(cfg tracker.Config, prs tracker.ProgressMap) pb.Co
 	if r.maybeCommit() {
 		// If the configuration change means that more entries are committed now,
 		// broadcast/append to everyone in the updated config.
-		r.bcastAppend()
+		r.bcastAppend(false)
 	} else {
 		// Otherwise, still probe the newly added replicas; there's no reason to
 		// let them wait out a heartbeat interval (or the next incoming
 		// proposal).
 		r.prs.Visit(func(id uint64, pr *tracker.Progress) {
-			r.maybeSendAppend(id, false /* sendIfEmpty */)
+			r.maybeSendAppend(id, false /* sendIfEmpty */, false)
 		})
 	}
 	// If the the leadTransferee was removed, abort the leadership transfer.
