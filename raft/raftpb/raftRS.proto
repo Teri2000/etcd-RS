@@ -21,8 +21,8 @@ message Entry {
 	optional EntryType  Type  = 1 [(gogoproto.nullable) = false];
 	optional bytes      Data  = 4;
 	optional Entry      NextRSEntry = 5;
-	optional uint32     DataSize = 6;
-	optional uint32     IndexRS  = 7;
+	optional uint32     DataSize = 6 [(gogoproto.nullable) = false];
+	optional uint32     IndexRS  = 7 [(gogoproto.nullable) = false];
 }
 
 message SnapshotMetadata {

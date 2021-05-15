@@ -18,7 +18,7 @@ const (
 
 func EncodeEntry(ent pb.Entry) []pb.Entry {
 	ents := []pb.Entry{}
-	if ent.Data == nil || len(ent.Data) == 0 || *ent.IndexRS != 0 {
+	if ent.Data == nil || len(ent.Data) == 0 || ent.IndexRS != 0 {
 		return ents
 	}
 	ent_ptr := ent.NextRSEntry
@@ -43,8 +43,8 @@ func EncodeEntry(ent pb.Entry) []pb.Entry {
 			ents[i].Data = shards[i]
 			ents[i].Index = index
 			ents[i].Term = term
-			*ents[i].IndexRS = uint32(i + 1)
-			*ents[i].DataSize = size
+			ents[i].IndexRS = uint32(i + 1)
+			ents[i].DataSize = size
 			ents[i].NextRSEntry = ent_ptr
 			ent_ptr = &ents[i]
 		}
@@ -66,7 +66,7 @@ func DecodeEntries(ents []pb.Entry) pb.Entry {
 			if term != ents[i].Term || index != ents[i].Index {
 				return pb.Entry{}
 			}
-			rsIndex := *ents[i].IndexRS
+			rsIndex := ents[i].IndexRS
 			if rsIndex == 0 {
 				return ents[i]
 			} else {
@@ -82,8 +82,9 @@ func DecodeEntries(ents []pb.Entry) pb.Entry {
 			for j := 0; j < DATA_SHARDS; j++ {
 				buffer.Write(shards[j])
 			}
-			ent.Data = buffer.Bytes()[0:*ent.DataSize]
+			ent.Data = buffer.Bytes()[0:ent.DataSize]
 		}
+		log.Printf("Term: %d, Index: %d RS Decoded\n", index, term)
 		return ent
 	}
 }
