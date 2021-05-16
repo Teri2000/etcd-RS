@@ -88,6 +88,16 @@ func (rn *RawNode) Propose(data []byte) error {
 		}})
 }
 
+// Propose proposes data be appended to the raft log.
+func (rn *RawNode) ProposePut(data []byte) error {
+	return rn.raft.Step(pb.Message{
+		Type: pb.MsgProp,
+		From: rn.raft.id,
+		Entries: []pb.Entry{
+			{Data: data, IsPut: true},
+		}})
+}
+
 // ProposeConfChange proposes a config change. See (Node).ProposeConfChange for
 // details.
 func (rn *RawNode) ProposeConfChange(cc pb.ConfChangeI) error {

@@ -25,7 +25,7 @@ func EncodeEntry(ent pb.Entry) {
 
 	var req, newreq serverpb.InternalRaftRequest
 	err := req.Unmarshal(ent.Data)
-	if err == nil || req.Put == nil {
+	if err != nil || req.Put == nil {
 		return
 	}
 	putVal := req.Put.Value
@@ -42,7 +42,7 @@ func EncodeEntry(ent pb.Entry) {
 		for _, shard := range shards {
 			newreq.Put.Value = shard
 			newEntryData, err := newreq.Marshal()
-			if err != nil {
+			if err == nil {
 				newEntry := &pb.Entry{
 					Term:        term,
 					Index:       index,
