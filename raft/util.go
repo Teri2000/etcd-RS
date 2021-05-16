@@ -17,6 +17,7 @@ package raft
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"strings"
 
 	pb "go.etcd.io/etcd/raft/raftpb"
@@ -241,6 +242,7 @@ func tryUseRsEntries(ents []pb.Entry) (newEnts []pb.Entry) {
 		} else {
 			newEnts = append(newEnts, *next)
 			ent.NextRSEntry = next.NextRSEntry
+			log.Printf("try to use RS entry\n")
 		}
 	}
 	return newEnts

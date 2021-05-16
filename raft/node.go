@@ -132,6 +132,7 @@ type Node interface {
 	// Propose proposes that data be appended to the log. Note that proposals can be lost without
 	// notice, therefore it is user's job to ensure proposal retries.
 	Propose(ctx context.Context, data []byte) error
+	ProposePut(ctx context.Context, data []byte) error
 	// ProposeConfChange proposes a configuration change. Like any proposal, the
 	// configuration change may be dropped with or without an error being
 	// returned. In particular, configuration changes are dropped unless the
@@ -413,6 +414,10 @@ func (n *node) Campaign(ctx context.Context) error { return n.step(ctx, pb.Messa
 
 func (n *node) Propose(ctx context.Context, data []byte) error {
 	return n.stepWait(ctx, pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data}}})
+}
+
+func (n *node) ProposePut(ctx context.Context, data []byte) error {
+	return n.stepWait(ctx, pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data, IsPut: true}}})
 }
 
 func (n *node) Step(ctx context.Context, m pb.Message) error {

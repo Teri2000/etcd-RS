@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/klauspost/reedsolomon"
+	serverpb "go.etcd.io/etcd/etcdserver/etcdserverpb"
 	pb "go.etcd.io/etcd/raft/raftpb"
 )
 
@@ -16,42 +17,44 @@ const (
 	BLOCK_SIZE      = BLOCK_PER_SHARD * DATA_SHARDS
 )
 
-func EncodeEntry(ent pb.Entry) []pb.Entry {
-	ents := []pb.Entry{}
-	if ent.Data == nil || len(ent.Data) == 0 || ent.IndexRS != 0 {
-		return ents
+func EncodeEntry(ent pb.Entry) {
+
+	if ent.Data == nil || len(ent.Data) == 0 || ent.NextRSEntry != nil {
+		return
 	}
-	ent_ptr := ent.NextRSEntry
-	if ent_ptr != nil {
-		for i := 0; i < ALL_SHARDS; i++ {
-			ents = append(ents, *ent_ptr)
-			ent_ptr = ent_ptr.NextRSEntry
-			if ent_ptr == nil {
-				return ents
-			}
-		}
+
+	var req, newreq serverpb.InternalRaftRequest
+	err := req.Unmarshal(ent.Data)
+	if err == nil || req.Put == nil {
+		return
 	}
+	putVal := req.Put.Value
+
 	enc, erre := reedsolomon.New(DATA_SHARDS, PARITY_SHARDS)
-	shards, errs := enc.Split(ent.Data)
+	shards, errs := enc.Split(putVal)
 	if erre == nil && errs == nil && enc.Encode(shards) == nil {
+		ent_ptr := &ent
 		term := ent.Term
 		index := ent.Index
-		size := uint32(len(ent.Data))
-		ents := make([]pb.Entry, ALL_SHARDS)
-		ent_ptr = nil
-		for i := ALL_SHARDS - 1; i >= 0; i-- {
-			ents[i].Data = shards[i]
-			ents[i].Index = index
-			ents[i].Term = term
-			ents[i].IndexRS = uint32(i + 1)
-			ents[i].DataSize = size
-			ents[i].NextRSEntry = ent_ptr
-			ent_ptr = &ents[i]
+		var newData []byte
+		copy(newData, ent.Data)
+		newreq.Unmarshal(newData)
+		for _, shard := range shards {
+			newreq.Put.Value = shard
+			newEntryData, err := newreq.Marshal()
+			if err != nil {
+				newEntry := &pb.Entry{
+					Term:        term,
+					Index:       index,
+					Data:        newEntryData,
+					NextRSEntry: nil,
+				}
+				ent_ptr.NextRSEntry = newEntry
+				ent_ptr = newEntry
+			}
 		}
 		log.Printf("Term: %d, Index: %d RS Encoded\n", index, term)
-		return ents
 	}
-	return []pb.Entry{}
 }
 
 func DecodeEntries(ents []pb.Entry) pb.Entry {

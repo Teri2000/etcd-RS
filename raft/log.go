@@ -124,16 +124,8 @@ func (l *raftLog) appendRS(ents ...pb.Entry) uint64 {
 		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
 	}
 	for _, ent := range ents {
-		var entRs []pb.Entry
-		var ent_ptr *pb.Entry = &ent
-		if ent.Type == pb.EntryNormal {
-			entRs = rscode.EncodeEntry(ent)
-		}
-		if len(entRs) > 0 {
-			for _, entR := range entRs {
-				ent_ptr.NextRSEntry = &entR
-				ent_ptr = ent_ptr.NextRSEntry
-			}
+		if ent.Type == pb.EntryNormal && ent.IsPut {
+			rscode.EncodeEntry(ent)
 		}
 	}
 	l.unstable.truncateAndAppend(ents)

@@ -1653,6 +1653,10 @@ func (n *nodeRecorder) Propose(ctx context.Context, data []byte) error {
 	n.Record(testutil.Action{Name: "Propose", Params: []interface{}{data}})
 	return nil
 }
+func (n *nodeRecorder) ProposePut(ctx context.Context, data []byte) error {
+	n.Record(testutil.Action{Name: "Propose", Params: []interface{}{data}})
+	return nil
+}
 func (n *nodeRecorder) ProposeConfChange(ctx context.Context, conf raftpb.ConfChangeI) error {
 	n.Record(testutil.Action{Name: "ProposeConfChange"})
 	return nil
