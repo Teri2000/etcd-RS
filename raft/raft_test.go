@@ -1398,7 +1398,7 @@ func TestMsgAppRespWaitReset(t *testing.T) {
 
 	// The new leader has just emitted a new Term 4 entry; consume those messages
 	// from the outgoing queue.
-	sm.bcastAppend()
+	sm.bcastAppend(false)
 	sm.readMessages()
 
 	// Node 2 acks the first entry, making it committed.

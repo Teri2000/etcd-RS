@@ -210,6 +210,29 @@ func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	}
 }
 
+// Visit invokes the supplied closure for all tracked progresses in stable order.
+func (p *ProgressTracker) VisitIndex(f func(id uint64, index uint32)) {
+	n := len(p.Progress)
+	// We need to sort the IDs and don't want to allocate since this is hot code.
+	// The optimization here mirrors that in `(MajorityConfig).CommittedIndex`,
+	// see there for details.
+	var sl [7]uint64
+	ids := sl[:]
+	if len(sl) >= n {
+		ids = sl[:n]
+	} else {
+		ids = make([]uint64, n)
+	}
+	for id := range p.Progress {
+		n--
+		ids[n] = id
+	}
+	insertionSort(ids)
+	for i, id := range ids {
+		f(id, uint32(i))
+	}
+}
+
 // QuorumActive returns true if the quorum is active from the view of the local
 // raft state machine. Otherwise, it returns false.
 func (p *ProgressTracker) QuorumActive() bool {
