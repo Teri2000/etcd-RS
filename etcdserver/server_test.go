@@ -1653,7 +1653,7 @@ func (n *nodeRecorder) Propose(ctx context.Context, data []byte) error {
 	n.Record(testutil.Action{Name: "Propose", Params: []interface{}{data}})
 	return nil
 }
-func (n *nodeRecorder) ProposePut(ctx context.Context, data []byte) error {
+func (n *nodeRecorder) ProposeCoded(ctx context.Context, data []byte, datacoded []byte, size uint32) error {
 	n.Record(testutil.Action{Name: "Propose", Params: []interface{}{data}})
 	return nil
 }

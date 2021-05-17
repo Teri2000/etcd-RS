@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"log"
 	"time"
 
 	"go.etcd.io/etcd/auth"
@@ -28,6 +29,7 @@ import (
 	"go.etcd.io/etcd/mvcc"
 	"go.etcd.io/etcd/pkg/traceutil"
 	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/rscode"
 
 	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
@@ -626,15 +628,6 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 		r.Header.AuthRevision = authInfo.Revision
 	}
 
-	data, err := r.Marshal()
-	if err != nil {
-		return nil, err
-	}
-
-	if len(data) > int(s.Cfg.MaxRequestBytes) {
-		return nil, ErrRequestTooLarge
-	}
-
 	id := r.ID
 	if id == 0 {
 		id = r.Header.ID
@@ -645,10 +638,26 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	defer cancel()
 
 	start := time.Now()
-	if r.Put == nil {
+
+	var val []byte
+	if r.Put != nil && len(r.Put.Value) > 16 {
+		copy(val, r.Put.Value)
+		r.Put.Value = []byte{}
+	}
+
+	data, err := r.Marshal()
+	log.Printf("data size is %d", len(data))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > int(s.Cfg.MaxRequestBytes) {
+		return nil, ErrRequestTooLarge
+	}
+	if len(val) == 0 {
 		err = s.r.Propose(cctx, data)
 	} else {
-		err = s.r.ProposePut(cctx, data)
+		valcoded := rscode.EncodeByte(val)
+		err = s.r.ProposeCoded(cctx, data, valcoded, uint32(len(val)))
 	}
 
 	if err != nil {

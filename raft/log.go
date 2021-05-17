@@ -19,7 +19,6 @@ import (
 	"log"
 
 	pb "go.etcd.io/etcd/raft/raftpb"
-	"go.etcd.io/etcd/rscode"
 )
 
 type raftLog struct {
@@ -111,22 +110,6 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 	}
 	if after := ents[0].Index - 1; after < l.committed {
 		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
-	}
-	l.unstable.truncateAndAppend(ents)
-	return l.lastIndex()
-}
-
-func (l *raftLog) appendRS(ents ...pb.Entry) uint64 {
-	if len(ents) == 0 {
-		return l.lastIndex()
-	}
-	if after := ents[0].Index - 1; after < l.committed {
-		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
-	}
-	for _, ent := range ents {
-		if ent.Type == pb.EntryNormal && ent.IsPut {
-			rscode.EncodeEntry(ent)
-		}
 	}
 	l.unstable.truncateAndAppend(ents)
 	return l.lastIndex()

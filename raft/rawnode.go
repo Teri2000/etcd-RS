@@ -89,12 +89,12 @@ func (rn *RawNode) Propose(data []byte) error {
 }
 
 // Propose proposes data be appended to the raft log.
-func (rn *RawNode) ProposePut(data []byte) error {
+func (rn *RawNode) ProposeCoded(data []byte, valcoded []byte, size uint32) error {
 	return rn.raft.Step(pb.Message{
 		Type: pb.MsgProp,
 		From: rn.raft.id,
 		Entries: []pb.Entry{
-			{Data: data, IsPut: true},
+			{Data: data, DataCoded: valcoded, DataSize: size},
 		}})
 }
 

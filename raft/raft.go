@@ -485,16 +485,15 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool, sendRS bool) bool {
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
-		var newEnts []pb.Entry
-		if sendRS {
-			newEnts = tryUseRsEntries(ents)
-		} else {
-			newEnts = ents
+		if sendRS && pr.RecentActive {
+			for _, ent := range ents {
+				ent.DataCoded = ent.DataCoded[0:ent.DataSize]
+			}
 		}
 		m.Type = pb.MsgApp
 		m.Index = pr.Next - 1
 		m.LogTerm = term
-		m.Entries = newEnts
+		m.Entries = ents
 		m.Commit = r.raftLog.committed
 		if n := len(m.Entries); n != 0 {
 			switch pr.State {
@@ -540,7 +539,7 @@ func (r *raft) bcastAppend(tryRS bool) {
 		if id == r.id {
 			return
 		}
-		if r.prs.Progress[id].RecentActive && tryRS {
+		if tryRS {
 			r.sendRSAppend(id)
 		} else {
 			r.sendAppend(id)
@@ -585,7 +584,7 @@ func (r *raft) advance(rd Ready) {
 				Type: pb.EntryConfChangeV2,
 				Data: ccdata,
 			}
-			if !r.appendEntry(false, ent) {
+			if !r.appendEntry(ent) {
 				// If we could not append the entry, bump the pending conf index
 				// so that we'll try again later.
 				//
@@ -646,7 +645,7 @@ func (r *raft) reset(term uint64) {
 	r.readOnly = newReadOnly(r.readOnly.option)
 }
 
-func (r *raft) appendEntry(tryRS bool, es ...pb.Entry) (accepted bool) {
+func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 	li := r.raftLog.lastIndex()
 	for i := range es {
 		es[i].Term = r.Term
@@ -662,11 +661,7 @@ func (r *raft) appendEntry(tryRS bool, es ...pb.Entry) (accepted bool) {
 		return false
 	}
 	// use latest "last" index after truncate/append
-	if tryRS {
-		li = r.raftLog.appendRS(es...)
-	} else {
-		li = r.raftLog.append(es...)
-	}
+	li = r.raftLog.append(es...)
 
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
@@ -772,7 +767,7 @@ func (r *raft) becomeLeader() {
 	r.pendingConfIndex = r.raftLog.lastIndex()
 
 	emptyEnt := pb.Entry{Data: nil}
-	if !r.appendEntry(false, emptyEnt) {
+	if !r.appendEntry(emptyEnt) {
 		// This won't happen because we just called reset() above.
 		r.logger.Panic("empty entry was dropped")
 	}
@@ -1092,7 +1087,7 @@ func stepLeader(r *raft, m pb.Message) error {
 			}
 		}
 
-		if !r.appendEntry(true, m.Entries...) {
+		if !r.appendEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
 		r.bcastAppend(true)

@@ -17,9 +17,9 @@ const (
 	BLOCK_SIZE      = BLOCK_PER_SHARD * DATA_SHARDS
 )
 
-func EncodeEntry(ent pb.Entry) {
+func EncodeEntry(ent *pb.Entry) {
 
-	if ent.Data == nil || len(ent.Data) == 0 || ent.NextRSEntry != nil {
+	if ent.Data == nil || len(ent.Data) == 0 {
 		return
 	}
 
@@ -33,7 +33,6 @@ func EncodeEntry(ent pb.Entry) {
 	enc, erre := reedsolomon.New(DATA_SHARDS, PARITY_SHARDS)
 	shards, errs := enc.Split(putVal)
 	if erre == nil && errs == nil && enc.Encode(shards) == nil {
-		ent_ptr := &ent
 		term := ent.Term
 		index := ent.Index
 		var newData []byte
@@ -41,20 +40,29 @@ func EncodeEntry(ent pb.Entry) {
 		newreq.Unmarshal(newData)
 		for _, shard := range shards {
 			newreq.Put.Value = shard
-			newEntryData, err := newreq.Marshal()
-			if err == nil {
-				newEntry := &pb.Entry{
-					Term:        term,
-					Index:       index,
-					Data:        newEntryData,
-					NextRSEntry: nil,
-				}
-				ent_ptr.NextRSEntry = newEntry
-				ent_ptr = newEntry
-			}
+			// newEntryData, err := newreq.Marshal()
+			// if err == nil {
+			// 	newEntry := &pb.Entry{
+			// 		Term:  term,
+			// 		Index: index,
+			// 		Data:  newEntryData,
+			// 	}
+			// }
 		}
 		log.Printf("Term: %d, Index: %d RS Encoded\n", index, term)
 	}
+}
+
+func EncodeByte(val []byte) []byte {
+	var buffer bytes.Buffer
+	enc, erre := reedsolomon.New(DATA_SHARDS, PARITY_SHARDS)
+	shards, errs := enc.Split(val)
+	if erre == nil && errs == nil && enc.Encode(shards) == nil {
+		for _, shard := range shards {
+			buffer.Write(shard)
+		}
+	}
+	return buffer.Bytes()
 }
 
 func DecodeEntries(ents []pb.Entry) pb.Entry {
@@ -69,12 +77,12 @@ func DecodeEntries(ents []pb.Entry) pb.Entry {
 			if term != ents[i].Term || index != ents[i].Index {
 				return pb.Entry{}
 			}
-			rsIndex := ents[i].IndexRS
-			if rsIndex == 0 {
-				return ents[i]
-			} else {
-				shards[rsIndex-1] = ents[i].Data
-			}
+			// rsIndex := ents[i].IndexRS
+			// if rsIndex == 0 {
+			// 	return ents[i]
+			// } else {
+			// 	shards[rsIndex-1] = ents[i].Data
+			// }
 		}
 		errs := enc.ReconstructData(shards)
 		ent := pb.Entry{}

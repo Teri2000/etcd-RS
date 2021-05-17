@@ -17,7 +17,6 @@ package raft
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"strings"
 
 	pb "go.etcd.io/etcd/raft/raftpb"
@@ -231,19 +230,4 @@ func assertConfStatesEquivalent(l Logger, cs1, cs2 pb.ConfState) {
 		return
 	}
 	l.Panic(err)
-}
-
-func tryUseRsEntries(ents []pb.Entry) (newEnts []pb.Entry) {
-	newEnts = make([]pb.Entry, len(ents))
-	for _, ent := range ents {
-		next := ent.NextRSEntry
-		if next == nil {
-			newEnts = append(newEnts, ent)
-		} else {
-			newEnts = append(newEnts, *next)
-			ent.NextRSEntry = next.NextRSEntry
-			log.Printf("try to use RS entry\n")
-		}
-	}
-	return newEnts
 }

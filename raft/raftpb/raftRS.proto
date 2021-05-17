@@ -20,10 +20,8 @@ message Entry {
 	optional uint64     Index = 3 [(gogoproto.nullable) = false]; // must be 64-bit aligned for atomic operations
 	optional EntryType  Type  = 1 [(gogoproto.nullable) = false];
 	optional bytes      Data  = 4;
-	optional Entry      NextRSEntry = 5;
-	optional bool       isPut = 8 [(gogoproto.nullable) = false];
+	optional bytes      DataCoded = 5; //coded value[] of PutRequest 
 	optional uint32     DataSize = 6 [(gogoproto.nullable) = false];
-	optional uint32     IndexRS  = 7 [(gogoproto.nullable) = false];
 }
 
 message SnapshotMetadata {

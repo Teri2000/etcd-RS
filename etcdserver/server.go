@@ -2199,6 +2199,9 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		s.w.Trigger(r.ID, s.applyV2Request((*RequestV2)(rp)))
 		return
 	}
+	if e.DataSize > 0 && raftReq.Put != nil {
+		raftReq.Put.Value = e.DataCoded[0:e.DataSize]
+	}
 	if raftReq.V2 != nil {
 		req := (*RequestV2)(raftReq.V2)
 		s.w.Trigger(req.ID, s.applyV2Request(req))
