@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"log"
 	"time"
 
 	"go.etcd.io/etcd/auth"
@@ -641,12 +640,12 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 
 	var val []byte
 	if r.Put != nil && len(r.Put.Value) > 16 {
-		copy(val, r.Put.Value)
+		val = append(val, r.Put.Value...)
 		r.Put.Value = []byte{}
 	}
 
 	data, err := r.Marshal()
-	log.Printf("data size is %d", len(data))
+	//log.Printf("data size is %d", len(data))
 	if err != nil {
 		return nil, err
 	}
