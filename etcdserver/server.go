@@ -99,7 +99,7 @@ const (
 	recommendedMaxRequestBytes = 10 * 1024 * 1024
 
 	readyPercent = 0.9
-	tryRS_server = false
+	tryRS_server = true
 )
 
 var (
