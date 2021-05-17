@@ -2207,7 +2207,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		} else {
 			limit = int(e.DataSize)
 		}
-		raftReq.Put.Value = append(raftReq.Put.Value, e.DataCoded[:limit]...)
+		raftReq.Put.Value = e.DataCoded[:limit]
 	}
 	if raftReq.V2 != nil {
 		req := (*RequestV2)(raftReq.V2)

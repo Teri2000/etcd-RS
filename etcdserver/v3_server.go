@@ -640,7 +640,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 
 	var val []byte
 	if tryRS_V3 && r.Put != nil && len(val) >= 16 {
-		val = append(val, r.Put.Value...)
+		val = r.Put.Value
 		r.Put.Value = []byte{}
 	}
 
