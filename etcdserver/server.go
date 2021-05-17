@@ -2200,9 +2200,9 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		s.w.Trigger(r.ID, s.applyV2Request((*RequestV2)(rp)))
 		return
 	}
-	if tryRS_server && e.DataSize > 0 && raftReq.Put != nil {
+	if tryRS_server && raftReq.Put != nil {
 		var limit int
-		if len(e.DataCoded) < int(e.DataSize) {
+		if int(e.DataSize) == 0 || len(e.DataCoded) < int(e.DataSize) {
 			limit = len(e.DataCoded)
 		} else {
 			limit = int(e.DataSize)
