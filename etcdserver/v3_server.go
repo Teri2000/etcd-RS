@@ -41,7 +41,7 @@ const (
 	// We should stop accepting new proposals if the gap growing to a certain point.
 	maxGapBetweenApplyAndCommitIndex = 5000
 	traceThreshold                   = 100 * time.Millisecond
-	tryRS_V3                         = true
+	tryRS_V3                         = false
 )
 
 type RaftKV interface {

@@ -34,7 +34,7 @@ import (
 // None is a placeholder node ID used when there is no leader.
 const None uint64 = 0
 const noLimit = math.MaxUint64
-const tryRS bool = true
+const tryRS bool = false
 
 // Possible values for StateType.
 const (
