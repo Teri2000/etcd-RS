@@ -34,6 +34,7 @@ import (
 // None is a placeholder node ID used when there is no leader.
 const None uint64 = 0
 const noLimit = math.MaxUint64
+const tryRS bool = true
 
 // Possible values for StateType.
 const (
@@ -596,12 +597,12 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
-func (r *raft) bcastAppend(tryRS bool) {
+func (r *raft) bcastAppend(try bool) {
 	r.prs.VisitIndex(func(id uint64, index uint32) {
 		if id == r.id {
 			return
 		}
-		if tryRS {
+		if try {
 			r.maybeSendRSAppend(id, true, index)
 		} else {
 			r.sendAppend(id)
@@ -1152,7 +1153,7 @@ func stepLeader(r *raft, m pb.Message) error {
 		if !r.appendEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
-		r.bcastAppend(true)
+		r.bcastAppend(tryRS)
 		return nil
 	case pb.MsgReadIndex:
 		// If more than the local vote is needed, go through a full broadcast,
@@ -1234,7 +1235,7 @@ func stepLeader(r *raft, m pb.Message) error {
 				}
 
 				if r.maybeCommit() {
-					r.bcastAppend(true)
+					r.bcastAppend(tryRS)
 				} else if oldPaused {
 					// If we were paused before, this node may be missing the
 					// latest commit index, so send it.
@@ -1384,7 +1385,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 				r.campaign(campaignElection)
 			} else {
 				r.becomeLeader()
-				r.bcastAppend(true)
+				r.bcastAppend(tryRS)
 			}
 		case quorum.VoteLost:
 			// pb.MsgPreVoteResp contains future term of pre-candidate

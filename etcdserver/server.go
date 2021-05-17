@@ -99,6 +99,7 @@ const (
 	recommendedMaxRequestBytes = 10 * 1024 * 1024
 
 	readyPercent = 0.9
+	tryRS_server     = true
 )
 
 var (
@@ -2199,7 +2200,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		s.w.Trigger(r.ID, s.applyV2Request((*RequestV2)(rp)))
 		return
 	}
-	if e.DataSize > 0 && raftReq.Put != nil {
+	if tryRS_server && e.DataSize > 0 && raftReq.Put != nil {
 		var limit int
 		if len(e.DataCoded) < int(e.DataSize) {
 			limit = len(e.DataCoded)

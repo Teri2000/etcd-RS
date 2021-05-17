@@ -41,6 +41,7 @@ const (
 	// We should stop accepting new proposals if the gap growing to a certain point.
 	maxGapBetweenApplyAndCommitIndex = 5000
 	traceThreshold                   = 100 * time.Millisecond
+	tryRS_V3                         = true
 )
 
 type RaftKV interface {
@@ -639,7 +640,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	start := time.Now()
 
 	var val []byte
-	if r.Put != nil && len(r.Put.Value) > 16 {
+	if tryRS_V3 && r.Put != nil && len(r.Put.Value) > 16 {
 		val = append(val, r.Put.Value...)
 		r.Put.Value = []byte{}
 	}
