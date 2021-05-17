@@ -66,8 +66,8 @@ func (a *rawNodeAdapter) Step(_ context.Context, m pb.Message) error { return a.
 func (a *rawNodeAdapter) Propose(_ context.Context, data []byte) error {
 	return a.RawNode.Propose(data)
 }
-func (a *rawNodeAdapter) ProposeCoded(_ context.Context, data []byte, datacoded []byte, size uint32) error {
-	return a.RawNode.ProposeCoded(data, datacoded, size)
+func (a *rawNodeAdapter) ProposeCoded(_ context.Context, data []byte, datacoded []byte) error {
+	return a.RawNode.ProposeCoded(data, datacoded)
 }
 func (a *rawNodeAdapter) ProposeConfChange(_ context.Context, cc pb.ConfChangeI) error {
 	return a.RawNode.ProposeConfChange(cc)

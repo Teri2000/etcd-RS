@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	pb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/rscode"
 )
 
 func (st StateType) MarshalJSON() ([]byte, error) {
@@ -219,6 +220,27 @@ func limitSize(ents []pb.Entry, maxSize uint64) []pb.Entry {
 		size += ents[limit].Size()
 		if uint64(size) > maxSize {
 			break
+		}
+	}
+	return ents[:limit]
+}
+
+func limitSizeRS(ents []pb.Entry, maxSize uint64) []pb.Entry {
+	if len(ents) == 0 {
+		return ents
+	}
+	size, limit := 0, 0
+
+	for _, ent := range ents {
+		size += ent.Size()
+		if uint64(size) > maxSize {
+			break
+		}
+		limit++
+		valueSize := len(ent.DataCoded)
+		if valueSize >= 16 {
+			ent.DataSize = uint32(valueSize)
+			ent.DataCoded = rscode.EncodeByte(ent.DataCoded)
 		}
 	}
 	return ents[:limit]

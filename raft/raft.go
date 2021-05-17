@@ -514,7 +514,7 @@ func (r *raft) maybeSendRSAppend(to uint64, sendIfEmpty bool, index uint32) bool
 	m.To = to
 
 	term, errt := r.raftLog.term(pr.Next - 1)
-	ents, erre := r.raftLog.entries(pr.Next, r.maxMsgSize)
+	ents, erre := r.raftLog.entriesRS(pr.Next, r.maxMsgSize)
 	if len(ents) == 0 && !sendIfEmpty {
 		return false
 	}
@@ -549,7 +549,8 @@ func (r *raft) maybeSendRSAppend(to uint64, sendIfEmpty bool, index uint32) bool
 			for _, ent := range ents {
 				if len(ent.DataCoded) > 0 {
 					shardsize := (ent.DataSize + data_shards - 1) / data_shards
-					ent.DataCoded = ent.DataCoded[index*shardsize : index*shardsize+shardsize]
+					lo := index * shardsize
+					ent.DataCoded = ent.DataCoded[lo : lo+shardsize]
 				}
 			}
 		}

@@ -28,7 +28,6 @@ import (
 	"go.etcd.io/etcd/mvcc"
 	"go.etcd.io/etcd/pkg/traceutil"
 	"go.etcd.io/etcd/raft"
-	"go.etcd.io/etcd/rscode"
 
 	"github.com/gogo/protobuf/proto"
 	"go.uber.org/zap"
@@ -640,7 +639,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	start := time.Now()
 
 	var val []byte
-	if tryRS_V3 && r.Put != nil && len(r.Put.Value) > 16 {
+	if tryRS_V3 && r.Put != nil {
 		val = append(val, r.Put.Value...)
 		r.Put.Value = []byte{}
 	}
@@ -656,8 +655,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	if len(val) == 0 {
 		err = s.r.Propose(cctx, data)
 	} else {
-		valcoded := rscode.EncodeByte(val)
-		err = s.r.ProposeCoded(cctx, data, valcoded, uint32(len(val)))
+		err = s.r.ProposeCoded(cctx, data, val)
 	}
 
 	if err != nil {
