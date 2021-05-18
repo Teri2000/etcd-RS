@@ -258,13 +258,6 @@ func (l *raftLog) entries(i, maxsize uint64) ([]pb.Entry, error) {
 	return l.slice(i, l.lastIndex()+1, maxsize)
 }
 
-func (l *raftLog) entriesRS(i, maxsize uint64) ([]pb.Entry, error) {
-	if i > l.lastIndex() {
-		return nil, nil
-	}
-	return l.sliceRS(i, l.lastIndex()+1, maxsize)
-}
-
 // allEntries returns all entries in the log.
 func (l *raftLog) allEntries() []pb.Entry {
 	ents, err := l.entries(l.firstIndex(), noLimit)
@@ -349,46 +342,6 @@ func (l *raftLog) slice(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 		}
 	}
 	return limitSize(ents, maxSize), nil
-}
-
-func (l *raftLog) sliceRS(lo, hi, maxSize uint64) ([]pb.Entry, error) {
-	err := l.mustCheckOutOfBounds(lo, hi)
-	if err != nil {
-		return nil, err
-	}
-	if lo == hi {
-		return nil, nil
-	}
-	var ents []pb.Entry
-	if lo < l.unstable.offset {
-		storedEnts, err := l.storage.Entries(lo, min(hi, l.unstable.offset), maxSize)
-		if err == ErrCompacted {
-			return nil, err
-		} else if err == ErrUnavailable {
-			l.logger.Panicf("entries[%d:%d) is unavailable from storage", lo, min(hi, l.unstable.offset))
-		} else if err != nil {
-			panic(err) // TODO(bdarnell)
-		}
-
-		// check if ents has reached the size limitation
-		if uint64(len(storedEnts)) < min(hi, l.unstable.offset)-lo {
-			return storedEnts, nil
-		}
-
-		ents = storedEnts
-	}
-	if hi > l.unstable.offset {
-		unstable := l.unstable.slice(max(lo, l.unstable.offset), hi)
-		if len(ents) > 0 {
-			combined := make([]pb.Entry, len(ents)+len(unstable))
-			n := copy(combined, ents)
-			copy(combined[n:], unstable)
-			ents = combined
-		} else {
-			ents = unstable
-		}
-	}
-	return limitSizeRS(ents, maxSize), nil
 }
 
 // l.firstIndex <= lo <= hi <= l.firstIndex + len(l.entries)

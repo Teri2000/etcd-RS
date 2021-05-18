@@ -29,6 +29,7 @@ import (
 	"go.etcd.io/etcd/raft/quorum"
 	pb "go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
+	"go.etcd.io/etcd/rscode"
 )
 
 // None is a placeholder node ID used when there is no leader.
@@ -514,7 +515,7 @@ func (r *raft) maybeSendRSAppend(to uint64, sendIfEmpty bool, index uint32) bool
 	m.To = to
 
 	term, errt := r.raftLog.term(pr.Next - 1)
-	ents, erre := r.raftLog.entriesRS(pr.Next, r.maxMsgSize)
+	ents, erre := r.raftLog.entries(pr.Next, r.maxMsgSize)
 	if len(ents) == 0 && !sendIfEmpty {
 		return false
 	}
@@ -547,7 +548,7 @@ func (r *raft) maybeSendRSAppend(to uint64, sendIfEmpty bool, index uint32) bool
 		if pr.RecentActive {
 			data_shards := uint32(3) //rscode.DATA_SHARDS
 			for _, ent := range ents {
-				if len(ent.DataCoded) > 0 {
+				if ent.DataSize > 16 {
 					shardsize := (ent.DataSize + data_shards - 1) / data_shards
 					lo := index * shardsize
 					ent.DataCoded = ent.DataCoded[lo : lo+shardsize]
@@ -714,6 +715,35 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 	for i := range es {
 		es[i].Term = r.Term
 		es[i].Index = li + 1 + uint64(i)
+	}
+	// Track the size of this uncommitted proposal.
+	if !r.increaseUncommittedSize(es) {
+		r.logger.Debugf(
+			"%x appending new entries to log would exceed uncommitted entry size limit; dropping proposal",
+			r.id,
+		)
+		// Drop the proposal.
+		return false
+	}
+	// use latest "last" index after truncate/append
+	li = r.raftLog.append(es...)
+
+	r.prs.Progress[r.id].MaybeUpdate(li)
+	// Regardless of maybeCommit's return, our caller will call bcastAppend.
+	r.maybeCommit()
+	return true
+}
+
+func (r *raft) appendRSEntry(es ...pb.Entry) (accepted bool) {
+	li := r.raftLog.lastIndex()
+	for i, ent := range es {
+		es[i].Term = r.Term
+		es[i].Index = li + 1 + uint64(i)
+		valueSize := len(ent.DataCoded)
+		if valueSize >= 16 {
+			ent.DataSize = uint32(valueSize)
+			ent.DataCoded = rscode.EncodeByte(ent.DataCoded)
+		}
 	}
 	// Track the size of this uncommitted proposal.
 	if !r.increaseUncommittedSize(es) {
@@ -1150,10 +1180,16 @@ func stepLeader(r *raft, m pb.Message) error {
 				}
 			}
 		}
-
-		if !r.appendEntry(m.Entries...) {
-			return ErrProposalDropped
+		if tryRS {
+			if !r.appendRSEntry(m.Entries...) {
+				return ErrProposalDropped
+			}
+		} else {
+			if !r.appendEntry(m.Entries...) {
+				return ErrProposalDropped
+			}
 		}
+
 		r.bcastAppend(tryRS)
 		return nil
 	case pb.MsgReadIndex:

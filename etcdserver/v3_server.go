@@ -639,7 +639,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	start := time.Now()
 
 	var val []byte
-	if tryRS_V3 && r.Put != nil && len(val) >= 16 {
+	if tryRS_V3 && r.Put != nil {
 		val = r.Put.Value
 		r.Put.Value = []byte{}
 	}
