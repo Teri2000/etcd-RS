@@ -115,6 +115,17 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 	return l.lastIndex()
 }
 
+func (l *raftLog) appendRS(ents ...pb.Entry) uint64 {
+	if len(ents) == 0 {
+		return l.lastIndex()
+	}
+	if after := ents[0].Index - 1; after < l.committed {
+		l.logger.Panicf("after(%d) is out of range [committed(%d)]", after, l.committed)
+	}
+	l.unstable.truncateAndAppendRS(ents)
+	return l.lastIndex()
+}
+
 // findConflict finds the index of the conflict.
 // It returns the first pair of conflicting entries between the existing
 // entries and the given entries, if there are any.

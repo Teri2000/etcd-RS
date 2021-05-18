@@ -29,7 +29,6 @@ import (
 	"go.etcd.io/etcd/raft/quorum"
 	pb "go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
-	"go.etcd.io/etcd/rscode"
 )
 
 // None is a placeholder node ID used when there is no leader.
@@ -736,14 +735,14 @@ func (r *raft) appendEntry(es ...pb.Entry) (accepted bool) {
 
 func (r *raft) appendRSEntry(es ...pb.Entry) (accepted bool) {
 	li := r.raftLog.lastIndex()
-	for i, ent := range es {
+	for i := range es {
 		es[i].Term = r.Term
 		es[i].Index = li + 1 + uint64(i)
-		valueSize := len(ent.DataCoded)
-		if valueSize >= 16 {
-			ent.DataSize = uint32(valueSize)
-			ent.DataCoded = rscode.EncodeByte(ent.DataCoded)
-		}
+		// valueSize := len(ent.DataCoded)
+		// if valueSize >= 16 {
+		// 	ent.DataSize = uint32(valueSize)
+		// 	ent.DataCoded = rscode.EncodeByte(ent.DataCoded)
+		// }
 	}
 	// Track the size of this uncommitted proposal.
 	if !r.increaseUncommittedSize(es) {
@@ -755,7 +754,7 @@ func (r *raft) appendRSEntry(es ...pb.Entry) (accepted bool) {
 		return false
 	}
 	// use latest "last" index after truncate/append
-	li = r.raftLog.append(es...)
+	li = r.raftLog.appendRS(es...)
 
 	r.prs.Progress[r.id].MaybeUpdate(li)
 	// Regardless of maybeCommit's return, our caller will call bcastAppend.
