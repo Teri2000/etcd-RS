@@ -145,9 +145,10 @@ func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 
 func (u *unstable) truncateAndAppendRS(ents []pb.Entry) {
 	after := ents[0].Index
-	for _, ent := range ents {
+	for i := range ents {
+		ent := &ents[i]
 		valueSize := len(ent.DataCoded)
-		if valueSize >= 16 {
+		if valueSize >= 16 && ent.DataSize == 0 {
 			ent.DataSize = uint32(valueSize)
 			ent.DataCoded = rscode.EncodeByte(ent.DataCoded)
 		}
