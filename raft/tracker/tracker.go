@@ -211,7 +211,7 @@ func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 }
 
 // Visit invokes the supplied closure for all tracked progresses in stable order.
-func (p *ProgressTracker) VisitIndex(f func(id uint64, index uint32)) {
+func (p *ProgressTracker) VisitIndex(leadid uint64, f func(id uint64, index uint32)) {
 	n := len(p.Progress)
 	// We need to sort the IDs and don't want to allocate since this is hot code.
 	// The optimization here mirrors that in `(MajorityConfig).CommittedIndex`,
@@ -228,8 +228,12 @@ func (p *ProgressTracker) VisitIndex(f func(id uint64, index uint32)) {
 		ids[n] = id
 	}
 	insertionSort(ids)
-	for i, id := range ids {
-		f(id, uint32(i))
+	var i int = 0
+	for _, id := range ids {
+		if id != leadid {
+			f(id, uint32(i))
+			i++
+		}
 	}
 }
 

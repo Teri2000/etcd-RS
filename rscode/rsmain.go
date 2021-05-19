@@ -63,6 +63,15 @@ func EncodeByte(val []byte) []byte {
 	return buffer.Bytes()
 }
 
+func EncodeByteWithId(val []byte, index int) []byte {
+	enc, erre := reedsolomon.New(DATA_SHARDS, PARITY_SHARDS)
+	shards, errs := enc.Split(val)
+	if erre == nil && errs == nil && enc.Encode(shards) == nil {
+		return shards[index]
+	}
+	return []byte{}
+}
+
 // func DecodeEntries(ents []pb.Entry) pb.Entry {
 // 	if len(ents) < DATA_SHARDS {
 // 		return pb.Entry{}

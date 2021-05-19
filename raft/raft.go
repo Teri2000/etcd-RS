@@ -29,6 +29,7 @@ import (
 	"go.etcd.io/etcd/raft/quorum"
 	pb "go.etcd.io/etcd/raft/raftpb"
 	"go.etcd.io/etcd/raft/tracker"
+	"go.etcd.io/etcd/rscode"
 )
 
 // None is a placeholder node ID used when there is no leader.
@@ -544,14 +545,17 @@ func (r *raft) maybeSendRSAppend(to uint64, sendIfEmpty bool, index uint32) bool
 		pr.BecomeSnapshot(sindex)
 		r.logger.Debugf("%x paused sending replication messages to %x [%s]", r.id, to, pr)
 	} else {
-		if pr.RecentActive {
-			data_shards := uint32(3) //rscode.DATA_SHARDS
-			for _, ent := range ents {
-				if ent.DataSize >= 16 {
-					shardsize := (ent.DataSize + data_shards - 1) / data_shards
-					lo := index * shardsize
-					ent.DataCoded = ent.DataCoded[lo : lo+shardsize]
+		if pr.RecentActive && (pr.Next+uint64(index))%2 == 0 {
+			for i := range ents {
+				ent := &ents[i]
+				datasize := len(ent.DataCoded)
+				if datasize >= 16 {
+					//r.logger.Infof("data_size :  %d", datasize)
+					ent.DataCoded = rscode.EncodeByteWithId(ent.DataCoded, int(index))
+					ent.DataSize = uint32(datasize)
+					//r.logger.Infof("code_size :  %d", len(ent.DataCoded))
 				}
+
 			}
 		}
 		m.Type = pb.MsgApp
@@ -599,10 +603,7 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
 func (r *raft) bcastAppend(try bool) {
-	r.prs.VisitIndex(func(id uint64, index uint32) {
-		if id == r.id {
-			return
-		}
+	r.prs.VisitIndex(r.id, func(id uint64, index uint32) {
 		if try {
 			r.maybeSendRSAppend(id, true, index)
 		} else {
